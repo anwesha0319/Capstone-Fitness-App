@@ -164,7 +164,7 @@ const MenuItem = ({ icon, title, onPress }) => (
       <Icon name={icon} size={24} color="#4CAF50" />
       <Text style={styles.menuTitle}>{title}</Text>
     </View>
-    <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+    <Icon name="chevron-right" size={24} color="#666" />
   </TouchableOpacity>
 );
 
