@@ -2,10 +2,14 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from .serializers import SignupSerializer, UserSerializer, ProfileUpdateSerializer
 
 User = get_user_model()
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = User.USERNAME_FIELD
 
 class SignupView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -40,9 +44,16 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return Response(UserSerializer(instance).data)
 
 class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+    
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            user = User.objects.get(email=request.data['email'])
-            response.data['user'] = UserSerializer(user).data
+            email = request.data.get('email')
+            if email:
+                try:
+                    user = User.objects.get(email=email)
+                    response.data['user'] = UserSerializer(user).data
+                except User.DoesNotExist:
+                    pass
         return response

@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import HealthData, HeartRateData, SleepData, WorkoutSession
+from .models import (
+    HealthData, HeartRateData, SleepData, WorkoutSession,
+    Diet, Marathon, Workout
+)
 
 class HealthDataSerializer(serializers.ModelSerializer):
     class Meta:
@@ -33,3 +36,25 @@ class HealthDataBulkSerializer(serializers.Serializer):
     heart_rate_data = HeartRateDataSerializer(many=True, required=False)
     sleep_data = SleepDataSerializer(many=True, required=False)
     workout_sessions = WorkoutSessionSerializer(many=True, required=False)
+
+class DietSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Diet
+        fields = ['id', 'age', 'gender', 'height', 'weight', 'activity',
+                  'daily_calories', 'meal_plan', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class MarathonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Marathon
+        fields = ['id', 'marathon_name', 'distance', 'target_date', 'target_time',
+                  'status', 'location', 'actual_time', 'completed_date', 'notes',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class WorkoutSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Workout
+        fields = ['id', 'workout_name', 'workout_type', 'duration', 'calories_burned',
+                  'intensity', 'date', 'description', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']

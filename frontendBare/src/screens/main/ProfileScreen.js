@@ -10,9 +10,15 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import GradientBackground from '../../components/GradientBackground';
+import GlassCard from '../../components/GlassCard';
+import GlassButton from '../../components/GlassButton';
+import { useTheme } from '../../context/ThemeContext';
+import { getTypographyStyle, getIconContainerStyle } from '../../utils/styleHelpers';
 import { authAPI } from '../../api/endpoints';
 
 const ProfileScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +35,13 @@ const ProfileScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getInitials = () => {
+    if (!user) return 'U';
+    const firstInitial = user.first_name?.charAt(0)?.toUpperCase() || '';
+    const lastInitial = user.last_name?.charAt(0)?.toUpperCase() || '';
+    return firstInitial + lastInitial || user.email?.charAt(0)?.toUpperCase() || 'U';
   };
 
   const handleLogout = () => {
@@ -49,240 +62,243 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  const formatGoal = (goal) => {
+    if (!goal) return 'Not Set';
+    return goal.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
+      <GradientBackground>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      </GradientBackground>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <Icon name="account-circle" size={80} color="#4CAF50" />
+    <GradientBackground>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Header with Avatar */}
+        <View style={styles.header}>
+          <View style={[styles.avatarContainer, { backgroundColor: colors.accent }]}>
+            <Text style={[getTypographyStyle(colors, 'h1'), { color: '#FFF', fontSize: 48 }]}>
+              {getInitials()}
+            </Text>
+          </View>
+          
+          <Text style={[getTypographyStyle(colors, 'h1'), { marginTop: 20 }]}>
+            {user?.first_name} {user?.last_name}
+          </Text>
+          <Text style={[getTypographyStyle(colors, 'body'), { marginTop: 6 }]}>
+            {user?.email}
+          </Text>
         </View>
-        <Text style={styles.name}>
-          {user?.first_name} {user?.last_name}
+
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <GlassCard variant="primary" style={styles.statBox}>
+            <View style={getIconContainerStyle(colors, 'large', `${colors.accent}20`)}>
+              <Icon name="calendar" size={24} color={colors.accent} />
+            </View>
+            <Text style={[getTypographyStyle(colors, 'caption'), { marginTop: 12 }]}>
+              Member Since
+            </Text>
+            <Text style={[getTypographyStyle(colors, 'bodyMedium'), { marginTop: 4 }]}>
+              {new Date(user?.created_at).toLocaleDateString('en', { 
+                year: 'numeric', 
+                month: 'short' 
+              })}
+            </Text>
+          </GlassCard>
+
+          <GlassCard variant="primary" style={styles.statBox}>
+            <View style={getIconContainerStyle(colors, 'large', `${colors.accent}20`)}>
+              <Icon name="target" size={24} color={colors.accent} />
+            </View>
+            <Text style={[getTypographyStyle(colors, 'caption'), { marginTop: 12 }]}>
+              Goal
+            </Text>
+            <Text style={[getTypographyStyle(colors, 'bodyMedium'), { marginTop: 4, textAlign: 'center' }]}>
+              {formatGoal(user?.fitness_goal)}
+            </Text>
+          </GlassCard>
+        </View>
+
+        {/* Account Settings */}
+        <Text style={[getTypographyStyle(colors, 'label'), styles.sectionTitle]}>
+          ACCOUNT
         </Text>
-        <Text style={styles.email}>{user?.email}</Text>
-      </View>
-
-      <View style={styles.statsContainer}>
-        <StatBox
-          icon="calendar"
-          label="Member Since"
-          value={new Date(user?.created_at).toLocaleDateString('en', { 
-            year: 'numeric', 
-            month: 'short' 
-          })}
-        />
-        <StatBox
-          icon="target"
-          label="Goal"
-          value={formatGoal(user?.fitness_goal)}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account Settings</Text>
         
-        <MenuItem
-          icon="account-edit"
-          title="Edit Profile"
-          onPress={() => Alert.alert('Coming Soon', 'Profile editing will be available soon')}
-        />
-        <MenuItem
-          icon="shield-check"
-          title="Privacy & Security"
-          onPress={() => Alert.alert('Coming Soon', 'Privacy settings coming soon')}
-        />
-        <MenuItem
-          icon="bell"
-          title="Notifications"
-          onPress={() => Alert.alert('Coming Soon', 'Notification settings coming soon')}
-        />
-        <MenuItem
-          icon="cog"
-          title="App Settings"
-          onPress={() => Alert.alert('Coming Soon', 'App settings coming soon')}
-        />
-      </View>
+        <GlassCard variant="primary" style={styles.menuSection}>
+          <MenuItem
+            icon="account-edit"
+            title="Edit Profile"
+            iconColor={colors.accent}
+            onPress={() => Alert.alert('Coming Soon', 'Profile editing will be available soon')}
+            colors={colors}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          <MenuItem
+            icon="shield-check"
+            title="Privacy & Security"
+            iconColor={colors.accentLight}
+            onPress={() => Alert.alert('Coming Soon', 'Privacy settings coming soon')}
+            colors={colors}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          <MenuItem
+            icon="bell"
+            title="Notifications"
+            iconColor={colors.accent}
+            onPress={() => Alert.alert('Coming Soon', 'Notification settings coming soon')}
+            colors={colors}
+          />
+        </GlassCard>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Health Data</Text>
+        {/* Health Data */}
+        <Text style={[getTypographyStyle(colors, 'label'), styles.sectionTitle]}>
+          HEALTH DATA
+        </Text>
         
-        <MenuItem
-          icon="heart-pulse"
-          title="Health Connect Settings"
-          onPress={() => Alert.alert('Info', 'Health Connect integration coming soon for Expo')}
-        />
-        <MenuItem
-          icon="chart-line"
-          title="Export Data"
-          onPress={() => Alert.alert('Coming Soon', 'Data export will be available soon')}
-        />
-      </View>
+        <GlassCard variant="primary" style={styles.menuSection}>
+          <MenuItem
+            icon="heart-pulse"
+            title="Health Connect"
+            iconColor={colors.iconHeart}
+            onPress={() => Alert.alert('Info', 'Health Connect integration active')}
+            colors={colors}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          <MenuItem
+            icon="chart-line"
+            title="Export Data"
+            iconColor={colors.success}
+            onPress={() => Alert.alert('Coming Soon', 'Data export will be available soon')}
+            colors={colors}
+          />
+        </GlassCard>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Support</Text>
+        {/* Support */}
+        <Text style={[getTypographyStyle(colors, 'label'), styles.sectionTitle]}>
+          SUPPORT
+        </Text>
         
-        <MenuItem
-          icon="help-circle"
-          title="Help & FAQ"
-          onPress={() => Alert.alert('Coming Soon', 'Help section coming soon')}
-        />
-        <MenuItem
-          icon="information"
-          title="About"
-          onPress={() => Alert.alert('FitTrack', 'Version 1.0.0\n\nYour personal fitness companion')}
-        />
-      </View>
+        <GlassCard variant="primary" style={styles.menuSection}>
+          <MenuItem
+            icon="help-circle"
+            title="Help & FAQ"
+            iconColor={colors.accent}
+            onPress={() => Alert.alert('Coming Soon', 'Help section coming soon')}
+            colors={colors}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          <MenuItem
+            icon="information"
+            title="About"
+            iconColor={colors.accentLight}
+            onPress={() => Alert.alert('FitWell', 'Version 1.0.0\n\nYour personal fitness companion')}
+            colors={colors}
+          />
+        </GlassCard>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Icon name="logout" size={20} color="#fff" />
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+        {/* Logout Button */}
+        <GlassButton
+          variant="primary"
+          size="large"
+          onPress={handleLogout}
+          icon={<Icon name="logout" size={20} color="#FFF" />}
+          style={styles.logoutButton}
+        >
+          Logout
+        </GlassButton>
 
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </GradientBackground>
   );
 };
 
-const StatBox = ({ icon, label, value }) => (
-  <View style={styles.statBox}>
-    <Icon name={icon} size={28} color="#4CAF50" />
-    <Text style={styles.statLabel}>{label}</Text>
-    <Text style={styles.statValue}>{value}</Text>
-  </View>
-);
-
-const MenuItem = ({ icon, title, onPress }) => (
-  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+const MenuItem = ({ icon, title, iconColor, onPress, colors }) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
     <View style={styles.menuLeft}>
-      <Icon name={icon} size={24} color="#4CAF50" />
-      <Text style={styles.menuTitle}>{title}</Text>
+      <View style={[styles.menuIconContainer, { backgroundColor: `${iconColor}20` }]}>
+        <Icon name={icon} size={20} color={iconColor} />
+      </View>
+      <Text style={getTypographyStyle(colors, 'bodyMedium')}>{title}</Text>
     </View>
-    <Icon name="chevron-right" size={24} color="#666" />
+    <Icon name="chevron-right" size={20} color={colors.textTertiary} />
   </TouchableOpacity>
 );
 
-const formatGoal = (goal) => {
-  if (!goal) return 'Not Set';
-  return goal.split('_').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1)
-  ).join(' ');
-};
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 40,
   },
   header: {
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingTop: 60,
+    marginBottom: 30,
   },
   avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#1a1a1a',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: '#4CAF50',
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 16,
-    color: '#888',
+    marginBottom: 20,
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 15,
     marginBottom: 30,
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 20,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
+    paddingVertical: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
+    marginBottom: 12,
+    letterSpacing: 1,
+  },
+  menuSection: {
+    padding: 0,
+    marginBottom: 30,
+    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
     padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#333',
   },
   menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 15,
   },
-  menuTitle: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
+  menuIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 16,
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF3B30',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    marginBottom: 20,
   },
   bottomPadding: {
     height: 40,

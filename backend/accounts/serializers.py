@@ -20,7 +20,8 @@ class SignupSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['email', 'username', 'password', 'password2', 
-                  'first_name', 'last_name']
+                  'first_name', 'last_name', 'date_of_birth', 
+                  'height', 'weight', 'gender', 'fitness_goal']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:

@@ -16,3 +16,27 @@ export const healthAPI = {
   addSleepData: (sleepData) => apiClient.post('/health/sleep/', sleepData),
   addHeartRate: (heartRateData) => apiClient.post('/health/heart-rate/', heartRateData),
 };
+
+export const dietAPI = {
+  getDiets: () => apiClient.get('/health/diet/'),
+  createDiet: (data) => apiClient.post('/health/diet/', data),
+  updateDiet: (id, data) => apiClient.patch(`/health/diet/${id}/`, data),
+  deleteDiet: (id) => apiClient.delete(`/health/diet/${id}/`),
+  getDiet: (id) => apiClient.get(`/health/diet/${id}/`),
+};
+
+export const marathonAPI = {
+  getMarathons: () => apiClient.get('/health/marathon/'),
+  createMarathon: (data) => apiClient.post('/health/marathon/', data),
+  updateMarathon: (id, data) => apiClient.patch(`/health/marathon/${id}/`, data),
+  deleteMarathon: (id) => apiClient.delete(`/health/marathon/${id}/`),
+  getMarathon: (id) => apiClient.get(`/health/marathon/${id}/`),
+};
+
+export const workoutAPI = {
+  getWorkouts: () => apiClient.get('/health/workout/'),
+  createWorkout: (data) => apiClient.post('/health/workout/', data),
+  updateWorkout: (id, data) => apiClient.patch(`/health/workout/${id}/`, data),
+  deleteWorkout: (id) => apiClient.delete(`/health/workout/${id}/`),
+  getWorkout: (id) => apiClient.get(`/health/workout/${id}/`),
+};

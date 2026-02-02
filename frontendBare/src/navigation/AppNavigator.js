@@ -2,74 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Theme Provider
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
+
+// Components
+import TopTabNavigator from '../components/TopTabNavigator';
+
 // Import screens
-import LoginScreen from '../screens/auth/LoginScreen';
-import HomeScreen from '../screens/main/HomeScreen';
-import AnalyticsScreen from '../screens/main/AnalyticsScreen';
-import ProfileScreen from '../screens/main/ProfileScreen';
+import WelcomeScreen from '../screens/auth/WelcomeScreen';
+import LoginOnlyScreen from '../screens/auth/LoginOnlyScreen';
+import SignupScreen from '../screens/auth/SignupScreen';
+import DietPlanScreen from '../screens/recommendations/DietPlanScreen';
+import WorkoutPlanScreen from '../screens/recommendations/WorkoutPlanScreen';
+import MarathonPlanScreen from '../screens/recommendations/MarathonPlanScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
 
-const MainTabs = () => {
+const MainApp = () => {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarStyle: {
-          backgroundColor: '#000',
-          borderTopWidth: 1,
-          borderTopColor: '#333',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: '#4CAF50',
-        tabBarInactiveTintColor: '#666',
-        headerShown: false,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
-      }}>
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Analytics"
-        component={AnalyticsScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="chart-line" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="account" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={TopTabNavigator} />
+      <Stack.Screen name="DietPlan" component={DietPlanScreen} />
+      <Stack.Screen name="WorkoutPlan" component={WorkoutPlanScreen} />
+      <Stack.Screen name="MarathonPlan" component={MarathonPlanScreen} />
+    </Stack.Navigator>
   );
 };
 
 const AuthStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="LoginScreen" component={LoginScreen} />
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Login" component={LoginOnlyScreen} />
+      <Stack.Screen name="Signup" component={SignupScreen} />
     </Stack.Navigator>
   );
 };
@@ -98,22 +65,34 @@ const AppNavigator = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
+      <ThemeProvider>
+        <LoadingScreen />
+      </ThemeProvider>
     );
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {userToken ? (
-          <Stack.Screen name="MainApp" component={MainTabs} />
-        ) : (
-          <Stack.Screen name="Auth" component={AuthStack} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <ThemeProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {userToken ? (
+            <Stack.Screen name="MainApp" component={MainApp} />
+          ) : (
+            <Stack.Screen name="Auth" component={AuthStack} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ThemeProvider>
+  );
+};
+
+const LoadingScreen = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <ActivityIndicator size="large" color={colors.accent} />
+    </View>
   );
 };
 
@@ -122,7 +101,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
 });
 

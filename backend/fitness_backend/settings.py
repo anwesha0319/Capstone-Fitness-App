@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'accounts',
     'health_data',
+    'ml_models',
 ]
 
 MIDDLEWARE = [
@@ -160,6 +161,8 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 # CORS Settings
