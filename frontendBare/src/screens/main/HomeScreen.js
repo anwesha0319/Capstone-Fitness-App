@@ -512,7 +512,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   scrollContent: {
     paddingHorizontal: 20,

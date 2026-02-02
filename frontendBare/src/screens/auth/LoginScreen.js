@@ -45,7 +45,8 @@ const LoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('refresh_token', data.refresh);
         await AsyncStorage.setItem('user', JSON.stringify(data.user));
         
-        navigation.replace('Main');
+        // Force app to re-check auth status by reloading
+        // The AppNavigator's useEffect will detect the token and navigate to MainApp
       } else {
         Alert.alert('Error', 'Invalid response from server');
       }
