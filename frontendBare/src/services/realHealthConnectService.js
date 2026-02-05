@@ -1113,31 +1113,15 @@ class RealHealthConnectService {
         };
       });
 
-      // Format workout sessions
-      const workoutSessions = exerciseRecords.map((record) => {
-        const duration = (new Date(record.endTime) - new Date(record.startTime)) / (1000 * 60);
-        return {
-          workout_type: this.mapExerciseType(record.exerciseType),
-          start_time: record.startTime,
-          end_time: record.endTime,
-          duration: Math.round(duration),
-          calories_burned: 0,
-          distance: record.distance?.inKilometers || null,
-          notes: record.title || '',
-        };
-      });
-
       console.log('✅ Health data fetched successfully:');
       console.log(`  - ${healthData.length} daily records`);
       console.log(`  - ${heartRateData.length} heart rate readings`);
       console.log(`  - ${sleepData.length} sleep records`);
-      console.log(`  - ${workoutSessions.length} workouts`);
 
       return {
         health_data: healthData,
         heart_rate_data: heartRateData,
         sleep_data: sleepData,
-        workout_sessions: workoutSessions,
       };
     } catch (error) {
       console.error('❌ Failed to fetch health data:', error);

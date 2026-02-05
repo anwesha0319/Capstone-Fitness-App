@@ -23,3 +23,47 @@ class MealItemTracking(models.Model):
     status = models.CharField(max_length=20)  # eaten / skipped
     quantity_ratio = models.FloatField()  # 1.0 full, 0.5 half
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+# Workout Plan Exercise Tracking
+class WorkoutExerciseTracking(models.Model):
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('just_right', 'Just Right'),
+        ('difficult', 'Difficult'),
+    ]
+    
+    workout = models.ForeignKey('health_data.Workout', on_delete=models.CASCADE, related_name='exercise_tracking')
+    exercise_index = models.IntegerField()  # Index in the exercises JSON array
+    completed = models.BooleanField(default=False)
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'workout_exercise_tracking'
+        unique_together = ['workout', 'exercise_index']
+        ordering = ['exercise_index']
+
+
+# Marathon Plan Day Tracking
+class MarathonDayTracking(models.Model):
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('just_right', 'Just Right'),
+        ('difficult', 'Difficult'),
+    ]
+    
+    marathon = models.ForeignKey('health_data.Marathon', on_delete=models.CASCADE, related_name='day_tracking')
+    day_index = models.IntegerField()  # Index in the weekly_schedule JSON array
+    completed = models.BooleanField(default=False)
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'marathon_day_tracking'
+        unique_together = ['marathon', 'day_index']
+        ordering = ['day_index']

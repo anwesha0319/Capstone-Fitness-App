@@ -131,6 +131,16 @@ export const recalculateMealPlan = async (data = {}) => {
   }
 };
 
+export const deleteMealPlan = async () => {
+  try {
+    const response = await apiClient.delete('/ml/delete-meal-plan/');
+    return response.data;
+  } catch (error) {
+    console.error('Delete meal plan error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export const generateWorkoutPlan = async (data) => {
   try {
     const response = await apiClient.post('/ml/workout-plan/', data);
@@ -185,6 +195,181 @@ export const getHealthData = async (days = 7) => {
     return response.data;
   } catch (error) {
     console.error('Get health data error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+// Workout Plan Tracking API Functions
+export const getActiveWorkoutPlan = async () => {
+  try {
+    const response = await apiClient.get('/ml/active-workout-plan/');
+    return response.data;
+  } catch (error) {
+    console.error('Get active workout plan error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const trackWorkoutExercise = async (workoutId, exerciseIndex, completed = true) => {
+  try {
+    const response = await apiClient.post('/ml/track-workout-exercise/', {
+      workout_id: workoutId,
+      exercise_index: exerciseIndex,
+      completed: completed
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Track workout exercise error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const completeWorkoutPlan = async (workoutId, difficulty, preference) => {
+  try {
+    const response = await apiClient.post('/ml/complete-workout-plan/', {
+      workout_id: workoutId,
+      difficulty: difficulty,
+      preference: preference
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Complete workout plan error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Marathon Plan Tracking API Functions
+export const getActiveMarathonPlan = async () => {
+  try {
+    const response = await apiClient.get('/ml/active-marathon-plan/');
+    return response.data;
+  } catch (error) {
+    console.error('Get active marathon plan error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const trackMarathonDay = async (marathonId, dayIndex, completed = true) => {
+  try {
+    const response = await apiClient.post('/ml/track-marathon-day/', {
+      marathon_id: marathonId,
+      day_index: dayIndex,
+      completed: completed
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Track marathon day error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const completeMarathonWeek = async (marathonId, difficulty, preference) => {
+  try {
+    const response = await apiClient.post('/ml/complete-marathon-week/', {
+      marathon_id: marathonId,
+      difficulty: difficulty,
+      preference: preference
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Complete marathon week error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+// Calorie Logging API Functions
+export const logWorkoutCalories = async (calories, date = null) => {
+  try {
+    const response = await apiClient.post('/ml/log-workout-calories/', {
+      calories: calories,
+      date: date || new Date().toISOString().split('T')[0]
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Log workout calories error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const logMarathonCalories = async (calories, distanceKm, durationMinutes, date = null) => {
+  try {
+    const response = await apiClient.post('/ml/log-marathon-calories/', {
+      calories: calories,
+      distance_km: distanceKm,
+      duration_minutes: durationMinutes,
+      date: date || new Date().toISOString().split('T')[0]
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Log marathon calories error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getDailyWorkoutSummary = async () => {
+  try {
+    const response = await apiClient.get('/ml/daily-workout-summary/');
+    return response.data;
+  } catch (error) {
+    console.error('Get daily workout summary error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+// NEW DAILY WORKOUT SYSTEM API Functions
+export const generateDailyWorkout = async (data) => {
+  try {
+    const response = await apiClient.post('/ml/generate-daily-workout/', data);
+    return response.data;
+  } catch (error) {
+    console.error('Generate daily workout error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getTodaysWorkout = async () => {
+  try {
+    const response = await apiClient.get('/ml/todays-workout/');
+    return response.data;
+  } catch (error) {
+    console.error('Get todays workout error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const completeDailyWorkout = async (workoutId, feedback, notes = '') => {
+  try {
+    const response = await apiClient.post('/ml/complete-daily-workout/', {
+      workout_id: workoutId,
+      feedback: feedback,
+      notes: notes
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Complete daily workout error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const checkActiveWorkoutPlan = async () => {
+  try {
+    const response = await apiClient.get('/ml/check-active-workout-plan/');
+    return response.data;
+  } catch (error) {
+    console.error('Check active workout plan error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const checkActiveMarathonPlan = async () => {
+  try {
+    const response = await apiClient.get('/ml/check-active-marathon-plan/');
+    return response.data;
+  } catch (error) {
+    console.error('Check active marathon plan error:', error.response?.data || error.message);
     throw error;
   }
 };

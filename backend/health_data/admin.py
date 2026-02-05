@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    HealthData, HeartRateData, SleepData, WorkoutSession,
+    HealthData, HeartRateData, SleepData,
     Diet, Marathon, Workout, WaterIntake
 )
 
@@ -24,13 +24,6 @@ class SleepDataAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'date']
     list_filter = ['date', 'sleep_quality', 'user']
     readonly_fields = ['created_at', 'updated_at']
-
-@admin.register(WorkoutSession)
-class WorkoutSessionAdmin(admin.ModelAdmin):
-    list_display = ['user', 'workout_type', 'start_time', 'duration', 'calories_burned']
-    search_fields = ['user__email', 'workout_type']
-    list_filter = ['workout_type', 'start_time', 'user']
-    readonly_fields = ['created_at']
 
 @admin.register(Diet)
 class DietAdmin(admin.ModelAdmin):

@@ -14,7 +14,9 @@ const NutritionTab = ({ navigation }) => {
   const [waterGoal, setWaterGoal] = useState('3.0');
   const [todayWater, setTodayWater] = useState(0);
   const [isEditingWater, setIsEditingWater] = useState(false);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [waterInput, setWaterInput] = useState('0');
+  const [goalInput, setGoalInput] = useState('3.0');
   const [mealPlan, setMealPlan] = useState(null);
   const [showMealPlan, setShowMealPlan] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -181,12 +183,20 @@ const NutritionTab = ({ navigation }) => {
     setMealImages(images);
   };
 
-  const handleTrackMeal = async (mealItemId, status) => {
+  const handleTrackMeal = async (mealItemId, status, foodName) => {
     try {
       await trackMealItem(mealItemId, status);
-      loadMealPlan(); // Refresh silently
+      
+      // Show feedback based on status
+      if (status === 'eaten') {
+        Alert.alert('Great job! 🎉', `You ate ${foodName}. Keep up the healthy eating!`);
+      } else {
+        Alert.alert('No worries! 😊', `You skipped ${foodName}. Remember to stay on track with your nutrition goals.`);
+      }
+      
+      loadMealPlan(); // Refresh to show updated status
     } catch (error) {
-      console.error('Failed to track meal:', error);
+      Alert.alert('Error', 'Failed to track meal. Please try again.');
     }
   };
 
@@ -223,12 +233,29 @@ const NutritionTab = ({ navigation }) => {
         setTodayWater(value);
         setIsEditingWater(false);
         Alert.alert('Success', `Water intake updated to ${value}L`);
-        loadWeeklyWater(); // Refresh weekly chart
+        loadWeeklyWater();
       } catch (error) {
         Alert.alert('Error', 'Failed to save water intake');
       }
     } else {
       Alert.alert('Invalid Input', 'Please enter a valid water amount (0-10L)');
+    }
+  };
+
+  const handleSaveGoal = async () => {
+    const value = parseFloat(goalInput);
+    if (!isNaN(value) && value >= 1 && value <= 10) {
+      try {
+        // Save goal by updating today's water intake record with new goal
+        await saveWaterIntake(todayWater, value);
+        setWaterGoal(value.toString());
+        setIsEditingGoal(false);
+        Alert.alert('Success', `Water goal updated to ${value}L`);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to save water goal');
+      }
+    } else {
+      Alert.alert('Invalid Input', 'Please enter a valid goal (1-10L)');
     }
   };
 
@@ -275,18 +302,11 @@ const NutritionTab = ({ navigation }) => {
 
       {/* Hydration - Water Drop */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.hydrationHeader}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Hydration</Text>
-          <TouchableOpacity 
-            onPress={() => {
-              setWaterInput(String(todayWater));
-              setIsEditingWater(true);
-            }} 
-            style={[styles.editBtnSmall, { backgroundColor: colors.accent }]}
-          >
-            <Icon name="pencil" size={16} color="#FFF" />
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Hydration</Text>
+        
+        <Text style={[styles.waterRecommendation, { color: colors.textSecondary }]}>
+          Based on your profile, you should drink {waterGoal}L of water today. You can set a new goal if you want.
+        </Text>
         
         {todayWater === 0 ? (
           <View style={styles.noWaterContainer}>
@@ -297,16 +317,28 @@ const NutritionTab = ({ navigation }) => {
             <Text style={[styles.noWaterSubtext, { color: colors.textTertiary }]}>
               Please log your water intake to track your hydration goals
             </Text>
-            <TouchableOpacity
-              style={[styles.addWaterButton, { backgroundColor: colors.accent }]}
-              onPress={() => {
-                setWaterInput('0');
-                setIsEditingWater(true);
-              }}
-            >
-              <Icon name="plus" size={20} color="#FFF" />
-              <Text style={styles.addWaterButtonText}>Add Water Intake</Text>
-            </TouchableOpacity>
+            <View style={styles.waterButtonsRow}>
+              <TouchableOpacity
+                style={[styles.waterActionButton, { backgroundColor: colors.accent, flex: 1 }]}
+                onPress={() => {
+                  setWaterInput('0');
+                  setIsEditingWater(true);
+                }}
+              >
+                <Icon name="plus" size={20} color="#FFF" />
+                <Text style={styles.waterActionButtonText}>Add Water Intake</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.waterActionButton, { backgroundColor: colors.cardGlass, borderWidth: 1, borderColor: colors.accent, flex: 1 }]}
+                onPress={() => {
+                  setGoalInput(waterGoal);
+                  setIsEditingGoal(true);
+                }}
+              >
+                <Icon name="target" size={20} color={colors.accent} />
+                <Text style={[styles.waterActionButtonText, { color: colors.accent }]}>Set Goal</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <>
@@ -330,6 +362,30 @@ const NutritionTab = ({ navigation }) => {
             <Text style={[styles.waterRemaining, { color: colors.textSecondary }]}>
               {Math.max(0, parseFloat(waterGoal) - todayWater).toFixed(1)}L remaining
             </Text>
+            
+            {/* Edit and Set Goal buttons */}
+            <View style={styles.waterButtonsRow}>
+              <TouchableOpacity
+                style={[styles.waterActionButton, { backgroundColor: colors.accent, flex: 1 }]}
+                onPress={() => {
+                  setWaterInput(todayWater.toString());
+                  setIsEditingWater(true);
+                }}
+              >
+                <Icon name="pencil" size={20} color="#FFF" />
+                <Text style={styles.waterActionButtonText}>Edit Intake</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.waterActionButton, { backgroundColor: colors.cardGlass, borderWidth: 1, borderColor: colors.accent, flex: 1 }]}
+                onPress={() => {
+                  setGoalInput(waterGoal);
+                  setIsEditingGoal(true);
+                }}
+              >
+                <Icon name="target" size={20} color={colors.accent} />
+                <Text style={[styles.waterActionButtonText, { color: colors.accent }]}>Set Goal</Text>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
@@ -358,6 +414,38 @@ const NutritionTab = ({ navigation }) => {
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.accent }]}
                 onPress={handleSaveWater}
+              >
+                <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Water Goal Modal */}
+      <Modal visible={isEditingGoal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#182E3D' : '#E8F0EE' }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Set Water Goal</Text>
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Enter your daily water goal (L)</Text>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: colors.cardGlass, color: colors.textPrimary, borderColor: colors.border }]}
+              value={goalInput}
+              onChangeText={setGoalInput}
+              keyboardType="decimal-pad"
+              placeholder="3.0"
+              placeholderTextColor={colors.textTertiary}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.cardGlass }]}
+                onPress={() => setIsEditingGoal(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.accent }]}
+                onPress={handleSaveGoal}
               >
                 <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Save</Text>
               </TouchableOpacity>
@@ -463,27 +551,36 @@ const NutritionTab = ({ navigation }) => {
                     </View>
                     
                     <View style={styles.trackingButtons}>
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'eaten')}
-                      >
-                        <Icon 
-                          name="check-circle" 
-                          size={28} 
-                          color="#4CAF50" 
-                        />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'skipped')}
-                      >
-                        <Icon 
-                          name="close-circle" 
-                          size={28} 
-                          color="#F44336" 
-                        />
-                      </TouchableOpacity>
+                      {item.tracked ? (
+                        <View style={[styles.trackedBadge, { backgroundColor: item.status === 'eaten' ? '#4CAF50' : '#F44336' }]}>
+                          <Icon name={item.status === 'eaten' ? "check" : "close"} size={16} color="#FFF" />
+                          <Text style={styles.trackedText}>{item.status === 'eaten' ? 'Eaten' : 'Skipped'}</Text>
+                        </View>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'eaten', item.name)}
+                          >
+                            <Icon 
+                              name="check-circle" 
+                              size={28} 
+                              color="#4CAF50" 
+                            />
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'skipped', item.name)}
+                          >
+                            <Icon 
+                              name="close-circle" 
+                              size={28} 
+                              color="#F44336" 
+                            />
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 );
@@ -531,27 +628,36 @@ const NutritionTab = ({ navigation }) => {
                     </View>
                     
                     <View style={styles.trackingButtons}>
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'eaten')}
-                      >
-                        <Icon 
-                          name="check-circle" 
-                          size={28} 
-                          color="#4CAF50" 
-                        />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'skipped')}
-                      >
-                        <Icon 
-                          name="close-circle" 
-                          size={28} 
-                          color="#F44336" 
-                        />
-                      </TouchableOpacity>
+                      {item.tracked ? (
+                        <View style={[styles.trackedBadge, { backgroundColor: item.status === 'eaten' ? '#4CAF50' : '#F44336' }]}>
+                          <Icon name={item.status === 'eaten' ? "check" : "close"} size={16} color="#FFF" />
+                          <Text style={styles.trackedText}>{item.status === 'eaten' ? 'Eaten' : 'Skipped'}</Text>
+                        </View>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'eaten', item.name)}
+                          >
+                            <Icon 
+                              name="check-circle" 
+                              size={28} 
+                              color="#4CAF50" 
+                            />
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'skipped', item.name)}
+                          >
+                            <Icon 
+                              name="close-circle" 
+                              size={28} 
+                              color="#F44336" 
+                            />
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 );
@@ -599,27 +705,36 @@ const NutritionTab = ({ navigation }) => {
                     </View>
                     
                     <View style={styles.trackingButtons}>
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'eaten')}
-                      >
-                        <Icon 
-                          name="check-circle" 
-                          size={28} 
-                          color="#4CAF50" 
-                        />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={styles.trackButton}
-                        onPress={() => handleTrackMeal(item.id, 'skipped')}
-                      >
-                        <Icon 
-                          name="close-circle" 
-                          size={28} 
-                          color="#F44336" 
-                        />
-                      </TouchableOpacity>
+                      {item.tracked ? (
+                        <View style={[styles.trackedBadge, { backgroundColor: item.status === 'eaten' ? '#4CAF50' : '#F44336' }]}>
+                          <Icon name={item.status === 'eaten' ? "check" : "close"} size={16} color="#FFF" />
+                          <Text style={styles.trackedText}>{item.status === 'eaten' ? 'Eaten' : 'Skipped'}</Text>
+                        </View>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'eaten', item.name)}
+                          >
+                            <Icon 
+                              name="check-circle" 
+                              size={28} 
+                              color="#4CAF50" 
+                            />
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={styles.trackButton}
+                            onPress={() => handleTrackMeal(item.id, 'skipped', item.name)}
+                          >
+                            <Icon 
+                              name="close-circle" 
+                              size={28} 
+                              color="#F44336" 
+                            />
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 );
@@ -721,23 +836,25 @@ const NutritionTab = ({ navigation }) => {
       {/* No Plan Message - Updated Design */}
       {!showMealPlan && navigation && (
         <>
-          {/* No Meal Plan Card - Navigate to Diet Plan */}
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Icon name="food-off" size={64} color={colors.textTertiary} style={{ alignSelf: 'center', marginBottom: 16 }} />
-            <Text style={[styles.noPlanText, { color: colors.textSecondary }]}>No meal plan available for today.</Text>
-            <Text style={[styles.noPlanSubtext, { color: colors.textTertiary, textAlign: 'center', marginVertical: 8 }]}>
-              Get a personalized AI meal plan based on your profile and fitness goals.
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-              <TouchableOpacity
-                style={[styles.generateButton, { backgroundColor: colors.accent }]}
-                onPress={() => navigation.navigate('DietPlan')}
-              >
-                <Icon name="sparkles" size={20} color="#FFF" />
-                <Text style={styles.generateButtonText}>Get AI Meal Plan</Text>
-              </TouchableOpacity>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 8 }]}>Personalized Plans</Text>
+          
+          {/* Get Meal Plan Button - Similar to Workout/Marathon */}
+          <TouchableOpacity
+            style={[styles.aiPlanButton, { 
+              backgroundColor: isDark ? '#10B981' + '20' : '#10B981' + '15', 
+              borderColor: '#10B981' 
+            }]}
+            onPress={() => navigation.navigate('DietPlan')}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: '#10B981' + '25' }]}>
+              <Icon name="food-apple" size={32} color="#10B981" />
             </View>
-          </View>
+            <View style={styles.aiPlanContent}>
+              <Text style={[styles.aiPlanTitle, { color: colors.textPrimary }]}>Get Meal Plan</Text>
+              <Text style={[styles.aiPlanSubtitle, { color: colors.textSecondary }]}>Personalized nutrition plan</Text>
+            </View>
+            <Icon name="arrow-right" size={24} color="#10B981" />
+          </TouchableOpacity>
         </>
       )}
 
@@ -778,6 +895,7 @@ const styles = StyleSheet.create({
   nutrientChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, gap: 6 },
   nutrientName: { fontSize: 13, fontWeight: '600' },
   nutrientValue: { fontSize: 13, fontWeight: 'bold' },
+  waterRecommendation: { fontSize: 14, marginBottom: 16, lineHeight: 20, textAlign: 'center', fontStyle: 'italic' },
   waterDropContainer: { alignItems: 'center', marginVertical: 20 },
   waterDrop: { width: 160, height: 200, position: 'relative', justifyContent: 'flex-end', alignItems: 'center' },
   waterFillContainer: { position: 'absolute', bottom: 0, width: 160, height: 200, borderTopLeftRadius: 80, borderTopRightRadius: 80, borderBottomLeftRadius: 80, borderBottomRightRadius: 80, overflow: 'hidden' },
@@ -791,6 +909,9 @@ const styles = StyleSheet.create({
   noWaterContainer: { alignItems: 'center', paddingVertical: 20 },
   noWaterText: { fontSize: 18, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
   noWaterSubtext: { fontSize: 14, marginBottom: 20, textAlign: 'center', paddingHorizontal: 20 },
+  waterButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', paddingHorizontal: 20 },
+  waterActionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, gap: 8 },
+  waterActionButtonText: { color: '#FFF', fontSize: 15, fontWeight: 'bold' },
   addWaterButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, gap: 8 },
   addWaterButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   hydrationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -875,6 +996,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  trackedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  trackedText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
   generateButton: {
     flexDirection: 'row',

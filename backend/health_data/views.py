@@ -6,12 +6,12 @@ from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Avg, Sum, Count
 from datetime import datetime, timedelta, date
 from .models import (
-    HealthData, HeartRateData, SleepData, WorkoutSession,
+    HealthData, HeartRateData, SleepData,
     Diet, Marathon, Workout, WaterIntake
 )
 from .serializers import (
     HealthDataSerializer, HeartRateDataSerializer,
-    SleepDataSerializer, WorkoutSessionSerializer,
+    SleepDataSerializer,
     HealthDataBulkSerializer, DietSerializer,
     MarathonSerializer, WorkoutSerializer
 )
@@ -102,16 +102,6 @@ class SleepDataListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-class WorkoutSessionListCreateView(generics.ListCreateAPIView):
-    serializer_class = WorkoutSessionSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return WorkoutSession.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
 class BulkHealthDataCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -160,14 +150,7 @@ class BulkHealthDataCreateView(APIView):
             )
             created_counts['sleep_data'] = len(sleep_objs)
 
-        # Create workout sessions
-        if 'workout_sessions' in data:
-            workout_objs = [
-                WorkoutSession(user=request.user, **item)
-                for item in data['workout_sessions']
-            ]
-            WorkoutSession.objects.bulk_create(workout_objs)
-            created_counts['workout_sessions'] = len(workout_objs)
+        # Workout sessions removed - using Workout table instead
 
         return Response({
             'message': 'Health data synced successfully',
@@ -193,10 +176,6 @@ class AnalyticsView(APIView):
             'total_distance': health_data.aggregate(Sum('distance'))['distance__sum'] or 0,
             'avg_steps': health_data.aggregate(Avg('steps'))['steps__avg'] or 0,
             'avg_calories': health_data.aggregate(Avg('calories_burned'))['calories_burned__avg'] or 0,
-            'workout_count': WorkoutSession.objects.filter(
-                user=request.user,
-                start_time__date__gte=start_date
-            ).count(),
             'daily_data': list(health_data.values('date', 'steps', 'calories_burned', 'distance'))
         }
 

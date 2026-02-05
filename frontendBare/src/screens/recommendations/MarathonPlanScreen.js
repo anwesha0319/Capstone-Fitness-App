@@ -1,503 +1,426 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import axios from 'axios';
+import { generateMarathonPlan } from '../../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MarathonPlanScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [marathonPlan, setMarathonPlan] = useState(null);
-  const [currentDistance, setCurrentDistance] = useState('5');
-  const [targetDate, setTargetDate] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('beginner');
+  const [showInputForm, setShowInputForm] = useState(false);
   
-  // User data from analytics
-  const [avgSteps, setAvgSteps] = useState('8000');
-  const [spo2, setSpo2] = useState('98');
-  const [restingHeartRate, setRestingHeartRate] = useState('72');
-  const [avgSleep, setAvgSleep] = useState('7');
-  const [goalTime, setGoalTime] = useState('4');
+  // Form inputs
+  const [formData, setFormData] = useState({
+    age: '',
+    avgSteps: '5000',
+    spo2: '98',
+    restingHeartRate: '70',
+    sleepHours: '7',
+    goalTimeHours: '4',
+    marathonDate: '',
+    experienceLevel: 'beginner',
+    targetDistance: 'half_marathon'
+  });
 
-  const generatePlan = async () => {
-    if (!targetDate) {
-      Alert.alert('Required', 'Please enter target race date (YYYY-MM-DD)');
+  useEffect(() => {
+    loadUserProfile();
+    setDefaultMarathonDate();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const today = new Date();
+        const birthDate = new Date(user.date_of_birth);
+        const age = today.getFullYear() - birthDate.getFullYear();
+        
+        setFormData(prev => ({
+          ...prev,
+          age: age.toString()
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const setDefaultMarathonDate = () => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + 3); // 3 months from now
+    const dateStr = date.toISOString().split('T')[0];
+    setFormData(prev => ({ ...prev, marathonDate: dateStr }));
+  };
+
+  const handleGeneratePlan = async () => {
+    // Validate inputs
+    if (!formData.age || !formData.marathonDate) {
+      Alert.alert('Missing Information', 'Please fill in your age and marathon date');
       return;
     }
 
     setLoading(true);
+    setShowInputForm(false);
+    
     try {
-      const token = await AsyncStorage.getItem('access_token');
-      const response = await axios.post(
-        'http://192.168.29.52:8000/api/ml/marathon-plan/',
-        {
-          current_distance: parseFloat(currentDistance),
-          target_date: targetDate,
-          experience_level: experienceLevel,
-          avg_steps: parseInt(avgSteps),
-          spo2: parseInt(spo2),
-          resting_heart_rate: parseInt(restingHeartRate),
-          avg_sleep: parseFloat(avgSleep),
-          goal_time: parseFloat(goalTime),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (response.data.success) {
-        setMarathonPlan(response.data.marathon_plan);
+      const response = await generateMarathonPlan({
+        experience_level: formData.experienceLevel,
+        target_distance: formData.targetDistance,
+        age: parseInt(formData.age),
+        avg_steps: parseInt(formData.avgSteps),
+        spo2: parseInt(formData.spo2),
+        resting_heart_rate: parseInt(formData.restingHeartRate),
+        sleep_hours: parseFloat(formData.sleepHours),
+        goal_time_hours: parseFloat(formData.goalTimeHours),
+        marathon_date: formData.marathonDate
+      });
+      
+      if (response.success && response.marathon_plan) {
+        setMarathonPlan(response.marathon_plan);
+      } else {
+        Alert.alert('Error', 'Failed to generate marathon plan');
       }
     } catch (error) {
-      console.error('Marathon plan error:', error);
-      Alert.alert('Error', 'Failed to generate marathon plan. Check date format (YYYY-MM-DD)');
+      Alert.alert('Error', error.response?.data?.error || 'Failed to generate marathon plan');
     } finally {
       setLoading(false);
     }
   };
 
+  const InputField = ({ label, value, onChangeText, placeholder, keyboardType = 'default', info }) => (
+    <View style={styles.inputGroup}>
+      <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>{label}</Text>
+      {info && <Text style={[styles.inputInfo, { color: colors.textTertiary }]}>{info}</Text>}
+      <TextInput
+        style={[styles.input, { backgroundColor: colors.cardGlass, color: colors.textPrimary, borderColor: colors.border }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textTertiary}
+        keyboardType={keyboardType}
+      />
+    </View>
+  );
+
+  const SelectField = ({ label, value, options, onSelect, info }) => (
+    <View style={styles.inputGroup}>
+      <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>{label}</Text>
+      {info && <Text style={[styles.inputInfo, { color: colors.textTertiary }]}>{info}</Text>}
+      <View style={styles.selectRow}>
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            style={[
+              styles.selectOption,
+              { 
+                backgroundColor: value === option.value ? colors.accent : colors.cardGlass,
+                borderColor: value === option.value ? colors.accent : colors.border
+              }
+            ]}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={[styles.selectOptionText, { color: value === option.value ? '#FFF' : colors.textPrimary }]}>
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <LinearGradient
-      colors={isDark ? ['#1A3A3A', '#2A4F4F'] : ['#7A9B9E', '#A8C5C7']}
+      colors={isDark ? [colors.backgroundStart, colors.backgroundMid, colors.backgroundEnd] : [colors.backgroundStart, colors.backgroundMid, colors.backgroundEnd]}
       style={styles.container}
     >
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Marathon Prep</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>AI Marathon Plan</Text>
         </View>
 
         {!marathonPlan ? (
-          <View>
-            {/* Input Form */}
-            <View style={[styles.card, { backgroundColor: 'transparent', borderColor: colors.border }]}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Average Daily Steps</Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={avgSteps}
-                onChangeText={setAvgSteps}
-                keyboardType="numeric"
-                placeholder="e.g., 8000"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                SpO2 Level (%)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={spo2}
-                onChangeText={setSpo2}
-                keyboardType="numeric"
-                placeholder="e.g., 98"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Resting Heart Rate (bpm)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={restingHeartRate}
-                onChangeText={setRestingHeartRate}
-                keyboardType="numeric"
-                placeholder="e.g., 72"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Average Sleep (hours)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={avgSleep}
-                onChangeText={setAvgSleep}
-                keyboardType="decimal-pad"
-                placeholder="e.g., 7"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Goal Time (hours)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={goalTime}
-                onChangeText={setGoalTime}
-                keyboardType="decimal-pad"
-                placeholder="e.g., 4"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>Experience Level</Text>
-              <View style={styles.buttonGroup}>
-                {[
-                  { key: 'beginner', label: 'Beginner' },
-                  { key: 'intermediate', label: 'Intermediate' },
-                  { key: 'advanced', label: 'Advanced' }
-                ].map((level) => (
-                  <TouchableOpacity
-                    key={level.key}
-                    style={[
-                      styles.optionButton,
-                      {
-                        backgroundColor: experienceLevel === level.key ? colors.accent : colors.cardGlass,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setExperienceLevel(level.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        { color: experienceLevel === level.key ? '#fff' : colors.textPrimary },
-                      ]}
-                    >
-                      {level.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Current Running Distance (km)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={currentDistance}
-                onChangeText={setCurrentDistance}
-                keyboardType="numeric"
-                placeholder="e.g., 5"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Target Race Date (YYYY-MM-DD)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}
-                value={targetDate}
-                onChangeText={setTargetDate}
-                placeholder="e.g., 2026-06-15"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <TouchableOpacity
-                style={[styles.generateButton, { backgroundColor: colors.accent }]}
-                onPress={generatePlan}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.generateButtonText}>Generate Marathon Plan</Text>
-                )}
-              </TouchableOpacity>
+          <View style={styles.emptyState}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.accent + '20' }]}>
+              <Icon name="run-fast" size={64} color={colors.accent} />
             </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Get Your Marathon Training Plan</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              AI will generate a custom weekly training schedule based on your experience and health data
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.generateButton, { backgroundColor: colors.accent }]}
+              onPress={() => setShowInputForm(true)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <>
+                  <Icon name="sparkles" size={20} color="#FFF" />
+                  <Text style={styles.generateButtonText}>Generate Plan</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         ) : (
-          <View>
-            {/* Marathon Plan Results */}
-            <View style={[styles.card, { backgroundColor: 'transparent', borderColor: colors.border }]}>
-              <View style={styles.resultHeader}>
-                <Icon name="run-fast" size={32} color={colors.purple} />
-                <Text style={[styles.resultTitle, { color: colors.textPrimary }]}>
-                  Your Marathon Training Plan
-                </Text>
-              </View>
-
-              <View style={styles.statsGrid}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Weeks Until Race</Text>
-                  <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                    {marathonPlan.weeks_until_race}
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Current Distance</Text>
-                  <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                    {marathonPlan.current_distance} km
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textTertiary }]}>Target Distance</Text>
-                  <Text style={[styles.statValue, { color: colors.textPrimary }]}>
-                    {marathonPlan.target_distance} km
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Training Phases</Text>
-              {marathonPlan.phases.map((phase, idx) => (
-                <View key={idx} style={[styles.phaseCard, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}>
-                  <View style={styles.phaseHeader}>
-                    <Icon name="calendar-range" size={20} color={colors.accent} />
-                    <Text style={[styles.phaseName, { color: colors.textPrimary }]}>
-                      {phase.phase}
-                    </Text>
+          <>
+            {/* Plan Summary */}
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.planTitle, { color: colors.textPrimary }]}>{marathonPlan.plan_title}</Text>
+              
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#FF7043' + '20' }]}>
+                    <Icon name="fire" size={24} color="#FF7043" />
                   </View>
-                  <View style={styles.phaseDetails}>
-                    <View style={styles.phaseRow}>
-                      <Text style={[styles.phaseLabel, { color: colors.textTertiary }]}>Weekly Distance:</Text>
-                      <Text style={[styles.phaseValue, { color: colors.textPrimary }]}>
-                        {phase.weekly_distance}
-                      </Text>
-                    </View>
-                    <View style={styles.phaseRow}>
-                      <Text style={[styles.phaseLabel, { color: colors.textTertiary }]}>Long Run:</Text>
-                      <Text style={[styles.phaseValue, { color: colors.textPrimary }]}>
-                        {phase.long_run}
-                      </Text>
-                    </View>
-                    <View style={styles.phaseRow}>
-                      <Text style={[styles.phaseLabel, { color: colors.textTertiary }]}>Focus:</Text>
-                      <Text style={[styles.phaseValue, { color: colors.textPrimary }]}>
-                        {phase.focus}
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{marathonPlan.estimated_weekly_calories}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Calories</Text>
                 </View>
-              ))}
 
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Weekly Template</Text>
-              <View style={[styles.templateCard, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}>
-                {Object.entries(marathonPlan.weekly_template).map(([day, workout]) => (
-                  <View key={day} style={styles.templateRow}>
-                    <Text style={[styles.dayText, { color: colors.textPrimary }]}>
-                      {day.charAt(0).toUpperCase() + day.slice(1)}
-                    </Text>
-                    <Text style={[styles.workoutText, { color: colors.textSecondary }]}>
-                      {workout}
-                    </Text>
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#42A5F5' + '20' }]}>
+                    <Icon name="map-marker-distance" size={24} color="#42A5F5" />
                   </View>
-                ))}
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{marathonPlan.weekly_mileage_km}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>KM/Week</Text>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#66BB6A' + '20' }]}>
+                    <Icon name="calendar-week" size={24} color="#66BB6A" />
+                  </View>
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{marathonPlan.workouts_per_week}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Workouts</Text>
+                </View>
               </View>
-
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Nutrition Tips</Text>
-              {marathonPlan.nutrition_tips.map((tip, idx) => (
-                <Text key={idx} style={[styles.tip, { color: colors.textSecondary }]}>
-                  • {tip}
-                </Text>
-              ))}
-
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Injury Prevention</Text>
-              {marathonPlan.injury_prevention.map((tip, idx) => (
-                <Text key={idx} style={[styles.tip, { color: colors.textSecondary }]}>
-                  • {tip}
-                </Text>
-              ))}
-
-              <TouchableOpacity
-                style={[styles.regenerateButton, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}
-                onPress={() => setMarathonPlan(null)}
-              >
-                <Text style={[styles.regenerateText, { color: colors.textPrimary }]}>
-                  Generate New Plan
-                </Text>
-              </TouchableOpacity>
             </View>
-          </View>
+
+            {/* Weekly Schedule */}
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Weekly Schedule</Text>
+            
+            {marathonPlan.weekly_schedule.map((day, index) => {
+              const isRestDay = day.run_type.toLowerCase().includes('rest');
+              const dayColor = isRestDay ? '#9E9E9E' : '#AB47BC';
+              
+              return (
+                <View key={index} style={[styles.dayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.dayHeader}>
+                    <View style={[styles.dayBadge, { backgroundColor: dayColor }]}>
+                      <Text style={styles.dayBadgeText}>{day.day.substring(0, 3).toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.dayInfo}>
+                      <Text style={[styles.dayType, { color: colors.textPrimary }]}>{day.run_type}</Text>
+                      {!isRestDay && (
+                        <Text style={[styles.dayDistance, { color: colors.textSecondary }]}>{day.distance_km} km</Text>
+                      )}
+                    </View>
+                    {!isRestDay && (
+                      <View style={[styles.distanceBadge, { backgroundColor: '#42A5F5' + '20' }]}>
+                        <Icon name="map-marker-distance" size={16} color="#42A5F5" />
+                        <Text style={[styles.distanceText, { color: '#42A5F5' }]}>{day.distance_km} km</Text>
+                      </View>
+                    )}
+                  </View>
+                  {day.notes && (
+                    <Text style={[styles.dayNotes, { color: colors.textSecondary }]}>{day.notes}</Text>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Regenerate Button */}
+            <TouchableOpacity
+              style={[styles.regenerateButton, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}
+              onPress={() => setShowInputForm(true)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <>
+                  <Icon name="refresh" size={20} color={colors.accent} />
+                  <Text style={[styles.regenerateButtonText, { color: colors.accent }]}>Generate New Plan</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </>
         )}
 
-        <View style={styles.bottomSpace} />
+        <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Input Form Modal */}
+      <Modal visible={showInputForm} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#182E3D' : '#E8F0EE' }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Marathon Training Details</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Provide your information for a personalized marathon training plan
+              </Text>
+
+              <InputField
+                label="Age"
+                value={formData.age}
+                onChangeText={(text) => setFormData({...formData, age: text})}
+                placeholder="25"
+                keyboardType="numeric"
+                info="From your profile"
+              />
+
+              <SelectField
+                label="Experience Level"
+                value={formData.experienceLevel}
+                options={[
+                  { label: 'Beginner', value: 'beginner' },
+                  { label: 'Intermediate', value: 'intermediate' },
+                  { label: 'Advanced', value: 'advanced' }
+                ]}
+                onSelect={(value) => setFormData({...formData, experienceLevel: value})}
+              />
+
+              <SelectField
+                label="Target Distance"
+                value={formData.targetDistance}
+                options={[
+                  { label: '10K', value: '10k' },
+                  { label: 'Half Marathon', value: 'half_marathon' },
+                  { label: 'Full Marathon', value: 'full_marathon' }
+                ]}
+                onSelect={(value) => setFormData({...formData, targetDistance: value})}
+              />
+
+              <InputField
+                label="Marathon Date"
+                value={formData.marathonDate}
+                onChangeText={(text) => setFormData({...formData, marathonDate: text})}
+                placeholder="2026-05-15"
+                info="Format: YYYY-MM-DD"
+              />
+
+              <InputField
+                label="Goal Time (hours)"
+                value={formData.goalTimeHours}
+                onChangeText={(text) => setFormData({...formData, goalTimeHours: text})}
+                placeholder="4"
+                keyboardType="numeric"
+                info="Your target completion time"
+              />
+
+              <InputField
+                label="Average Daily Steps"
+                value={formData.avgSteps}
+                onChangeText={(text) => setFormData({...formData, avgSteps: text})}
+                placeholder="5000"
+                keyboardType="numeric"
+                info="Will be fetched from Health Connect (using default for now)"
+              />
+
+              <InputField
+                label="Resting Heart Rate (BPM)"
+                value={formData.restingHeartRate}
+                onChangeText={(text) => setFormData({...formData, restingHeartRate: text})}
+                placeholder="70"
+                keyboardType="numeric"
+                info="Will be fetched from Health Connect (using default for now)"
+              />
+
+              <InputField
+                label="Average Sleep (hours)"
+                value={formData.sleepHours}
+                onChangeText={(text) => setFormData({...formData, sleepHours: text})}
+                placeholder="7"
+                keyboardType="numeric"
+                info="Will be fetched from Health Connect (using default for now)"
+              />
+
+              <InputField
+                label="SpO2 Level (%)"
+                value={formData.spo2}
+                onChangeText={(text) => setFormData({...formData, spo2: text})}
+                placeholder="98"
+                keyboardType="numeric"
+                info="Will be fetched from Health Connect (using default for now)"
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.cardGlass, borderWidth: 1, borderColor: colors.border }]}
+                  onPress={() => setShowInputForm(false)}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.accent }]}
+                  onPress={handleGeneratePlan}
+                >
+                  <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Generate</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  card: {
-    padding: 24,
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  buttonGroup: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  optionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
-  generateButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  generateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  resultHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  resultTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  phaseCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  phaseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  phaseName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  phaseDetails: {
-    gap: 8,
-  },
-  phaseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  phaseLabel: {
-    fontSize: 13,
-  },
-  phaseValue: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  templateCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  templateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    width: 100,
-  },
-  workoutText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  tip: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  regenerateButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 16,
-    borderWidth: 1,
-  },
-  regenerateText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  bottomSpace: {
-    height: 20,
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  content: { padding: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  backButton: { marginRight: 16 },
+  title: { fontSize: 24, fontWeight: 'bold' },
+  emptyState: { alignItems: 'center', paddingVertical: 60 },
+  iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  emptyTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
+  emptySubtitle: { fontSize: 15, textAlign: 'center', marginBottom: 32, paddingHorizontal: 20, lineHeight: 22 },
+  generateButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 25, gap: 10 },
+  generateButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  card: { padding: 24, borderRadius: 20, marginBottom: 20, borderWidth: 1 },
+  planTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  summaryItem: { alignItems: 'center', gap: 8 },
+  summaryIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  summaryValue: { fontSize: 24, fontWeight: 'bold' },
+  summaryLabel: { fontSize: 13 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  dayCard: { padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1 },
+  dayHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dayBadge: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  dayBadgeText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
+  dayInfo: { flex: 1 },
+  dayType: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  dayDistance: { fontSize: 14 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 4 },
+  distanceText: { fontSize: 14, fontWeight: '600' },
+  dayNotes: { fontSize: 13, marginTop: 12, fontStyle: 'italic', lineHeight: 18 },
+  regenerateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, borderWidth: 2, gap: 10, marginTop: 8 },
+  regenerateButtonText: { fontSize: 16, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
+  modalSubtitle: { fontSize: 14, marginBottom: 24 },
+  inputGroup: { marginBottom: 20 },
+  inputLabel: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  inputInfo: { fontSize: 12, marginBottom: 8, fontStyle: 'italic' },
+  input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
+  selectRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  selectOption: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
+  selectOptionText: { fontSize: 14, fontWeight: '600' },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 20 },
+  modalButton: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
+  modalButtonText: { fontSize: 16, fontWeight: 'bold' },
 });
 
 export default MarathonPlanScreen;

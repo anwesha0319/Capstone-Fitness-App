@@ -12,12 +12,17 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'react-native-linear-gradient';
-import GlassCard from '../../components/GlassCard';
 import GlassButton from '../../components/GlassButton';
 import { useTheme } from '../../context/ThemeContext';
 import { getTypographyStyle, getIconContainerStyle } from '../../utils/styleHelpers';
 import { saveWeightGoal, getWeightGoal, getGoals } from '../../utils/storage';
 import { getHealthData, getWaterIntake } from '../../api/client';
+import {
+  initHealthConnect,
+  checkHealthConnectAvailability,
+  requestHealthPermissions,
+  getAllHealthDataToday,
+} from '../../services/healthConnectService';
 
 const HomeScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
@@ -36,6 +41,8 @@ const HomeScreen = ({ navigation }) => {
   const [bmi, setBmi] = useState(0);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [newGoalInput, setNewGoalInput] = useState('');
+  const [healthConnectAvailable, setHealthConnectAvailable] = useState(false);
+  const [healthConnectSyncing, setHealthConnectSyncing] = useState(false);
 
   // Icon colors - darker for light mode
   const getIconColor = (lightColor, darkColor) => isDark ? darkColor : lightColor;
@@ -55,12 +62,44 @@ const HomeScreen = ({ navigation }) => {
     loadUserData();
     loadHealthData();
     updateGreeting();
+    checkHealthConnect();
   }, []);
+
+  const checkHealthConnect = async () => {
+    try {
+      const initialized = await initHealthConnect();
+      
+      if (initialized) {
+        const result = await checkHealthConnectAvailability();
+        setHealthConnectAvailable(result.available);
+      }
+    } catch (error) {
+      // Silently fail - no console logs
+      setHealthConnectAvailable(false);
+    }
+  };
+
+  const handleSyncHealthConnect = async () => {
+    try {
+      setHealthConnectSyncing(true);
+      
+      Alert.alert(
+        'Health Connect Integration',
+        'Health Connect integration is currently being configured.\n\nFor now, please:\n1. Open Health Connect app\n2. Go to App permissions\n3. Find FitWell and grant permissions\n4. Come back and tap sync again',
+        [{ text: 'OK' }]
+      );
+      
+      setHealthConnectSyncing(false);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Unknown error');
+      setHealthConnectSyncing(false);
+    }
+  };
 
   const loadHealthData = async () => {
     try {
-      // Fetch from database API
-      const healthDataArray = await getHealthData(1); // Get today's data
+      // Fetch from database API - silently fail if no data
+      const healthDataArray = await getHealthData(1);
       const goals = await getGoals();
       const goal = await getWeightGoal();
       
@@ -73,7 +112,6 @@ const HomeScreen = ({ navigation }) => {
         setHeartRate(todayData.heart_rate || 0);
         setSleepHours(todayData.sleep_hours?.toString() || '0');
       } else {
-        // No data from API, set defaults
         setTodaySteps(0);
         setTodayCalories(0);
         setTodayDistance(0);
@@ -82,7 +120,7 @@ const HomeScreen = ({ navigation }) => {
         setSleepHours('0');
       }
       
-      // Fetch water intake from database
+      // Fetch water intake from database - silently fail
       try {
         const today = new Date().toISOString().split('T')[0];
         const waterResult = await getWaterIntake(today);
@@ -98,8 +136,7 @@ const HomeScreen = ({ navigation }) => {
       setWeightGoalState(goal || '');
       setStepsGoal(goals.stepsGoal);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load health data. Please check your connection.');
-      // Set defaults on error
+      // Silently set defaults - no error alert
       setTodaySteps(0);
       setTodayCalories(0);
       setTodayDistance(0);
@@ -174,19 +211,22 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Health Connect Sync Button */}
         <TouchableOpacity 
-          onPress={() => Alert.alert('Health Connect', 'Sync with Health Connect to import your health data from other apps and devices.\n\nFeatures:\n• Auto-sync steps, sleep, heart rate\n• Import workout data\n• Sync nutrition logs\n• Connect wearable devices\n\nComing soon!')}
+          onPress={handleSyncHealthConnect}
+          disabled={healthConnectSyncing}
         >
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.healthConnectRow}>
-              <View style={getIconContainerStyle(colors, 'medium', colors.accent)}>
-                <Icon name="sync" size={20} color="#FFFFFF" />
+              <View style={getIconContainerStyle(colors, 'medium', healthConnectAvailable ? colors.success : colors.accent)}>
+                <Icon name={healthConnectSyncing ? "loading" : "sync"} size={20} color="#FFFFFF" />
               </View>
               <View style={styles.healthConnectContent}>
                 <Text style={getTypographyStyle(colors, 'bodyMedium')}>
-                  Sync with Health Connect
+                  {healthConnectSyncing ? 'Syncing...' : 'Sync with Health Connect'}
                 </Text>
                 <Text style={getTypographyStyle(colors, 'caption')}>
-                  Import data from other apps
+                  {healthConnectAvailable 
+                    ? 'Tap to sync your health data' 
+                    : 'Health Connect not available'}
                 </Text>
               </View>
               <Icon name="chevron-right" size={24} color={colors.accent} />

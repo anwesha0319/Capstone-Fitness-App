@@ -76,52 +76,67 @@ def generate_meal_plan(calories, diet_type, allergies, goal, days, feedback=None
     4. Vary cooking methods (grilled, baked, steamed, raw, etc.)
     5. Include seasonal and colorful ingredients
     6. Balance macros: protein, carbs, healthy fats
+    7. MANDATORY: TOTAL DAILY CALORIES MUST EQUAL {calories} (±30 calories MAXIMUM)
+    
+    CALORIE DISTRIBUTION (MUST FOLLOW EXACTLY):
+    - Breakfast: {int(calories * 0.30)} calories (30% of {calories})
+    - Lunch: {int(calories * 0.35)} calories (35% of {calories})
+    - Dinner: {int(calories * 0.35)} calories (35% of {calories})
+    - TOTAL: {calories} calories
+    
+    VERIFICATION CHECKLIST:
+    ✓ Add up all breakfast item calories = {int(calories * 0.30)} (±20)
+    ✓ Add up all lunch item calories = {int(calories * 0.35)} (±20)
+    ✓ Add up all dinner item calories = {int(calories * 0.35)} (±20)
+    ✓ Total for the day = {calories} (±30)
+    
+    If a meal is short on calories, ADD MORE FOOD ITEMS until it reaches the target.
+    Each meal should have 3-5 food items to reach the calorie goal.
     
     Each day must include Breakfast, Lunch, Dinner.
-    Each meal must contain 2-4 food items with:
+    Each meal must contain 3-5 food items with:
     - name (string) - be specific and appetizing
-    - calories (number)
+    - calories (number) - MUST be accurate and realistic
     - protein (number in grams)
     - carbs (number in grams)
     - fat (number in grams)
 
     Return ONLY valid JSON structured by day number as keys (1, 2, 3, etc.).
-    Example format:
+    Example format for {calories} calorie target:
     {{
         "1": {{
             "breakfast": [
-                {{"name": "Greek Yogurt with Honey and Almonds", "calories": 180, "protein": 15, "carbs": 20, "fat": 6}},
-                {{"name": "Fresh Strawberries", "calories": 50, "protein": 1, "carbs": 12, "fat": 0}}
+                {{"name": "Greek Yogurt with Honey and Almonds", "calories": 200, "protein": 15, "carbs": 22, "fat": 7}},
+                {{"name": "Fresh Strawberries", "calories": 50, "protein": 1, "carbs": 12, "fat": 0}},
+                {{"name": "Whole Grain Toast with Peanut Butter", "calories": 220, "protein": 8, "carbs": 24, "fat": 10}},
+                {{"name": "Banana", "calories": 130, "protein": 1, "carbs": 33, "fat": 0}}
             ],
             "lunch": [
-                {{"name": "Grilled Chicken Caesar Salad", "calories": 350, "protein": 35, "carbs": 15, "fat": 18}},
-                {{"name": "Whole Grain Roll", "calories": 120, "protein": 4, "carbs": 22, "fat": 2}}
+                {{"name": "Grilled Chicken Caesar Salad", "calories": 380, "protein": 38, "carbs": 16, "fat": 19}},
+                {{"name": "Whole Grain Roll with Butter", "calories": 150, "protein": 5, "carbs": 24, "fat": 4}},
+                {{"name": "Apple", "calories": 95, "protein": 0, "carbs": 25, "fat": 0}},
+                {{"name": "Hummus with Carrots", "calories": 75, "protein": 3, "carbs": 8, "fat": 4}}
             ],
             "dinner": [
-                {{"name": "Baked Salmon with Lemon", "calories": 280, "protein": 35, "carbs": 0, "fat": 15}},
-                {{"name": "Roasted Brussels Sprouts", "calories": 80, "protein": 4, "carbs": 12, "fat": 3}},
-                {{"name": "Quinoa Pilaf", "calories": 180, "protein": 6, "carbs": 30, "fat": 4}}
+                {{"name": "Baked Salmon with Lemon Butter", "calories": 320, "protein": 36, "carbs": 0, "fat": 18}},
+                {{"name": "Roasted Brussels Sprouts with Olive Oil", "calories": 100, "protein": 4, "carbs": 13, "fat": 5}},
+                {{"name": "Quinoa Pilaf with Herbs", "calories": 200, "protein": 7, "carbs": 32, "fat": 5}},
+                {{"name": "Mixed Green Salad with Dressing", "calories": 80, "protein": 2, "carbs": 6, "fat": 6}}
             ]
-        }},
-        "2": {{
-            "breakfast": [
-                {{"name": "Avocado Toast on Sourdough", "calories": 250, "protein": 8, "carbs": 28, "fat": 12}},
-                {{"name": "Poached Eggs", "calories": 140, "protein": 12, "carbs": 1, "fat": 10}}
-            ],
-            "lunch": [...DIFFERENT from day 1...],
-            "dinner": [...DIFFERENT from day 1...]
         }}
     }}
     
     IMPORTANT: 
     - Return ONLY the JSON object, no additional text
     - Make each day's meals UNIQUE and DIFFERENT
-    - Ensure total daily calories are close to {calories} (±100 calories)
+    - VERIFY: breakfast ({int(calories * 0.30)}) + lunch ({int(calories * 0.35)}) + dinner ({int(calories * 0.35)}) = {calories} calories
+    - If total is short, add more food items or increase portions
+    - Each meal should have 3-5 items to comfortably reach the calorie target
     """
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash-exp',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         

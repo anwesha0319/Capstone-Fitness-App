@@ -1,682 +1,551 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'react-native-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import axios from 'axios';
+import { generateDailyWorkout, getTodaysWorkout, completeDailyWorkout, trackWorkoutExercise } from '../../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const WorkoutPlanScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
-  const [workoutPlan, setWorkoutPlan] = useState(null);
-  const [experienceLevel, setExperienceLevel] = useState('beginner');
-  const [daysPerWeek, setDaysPerWeek] = useState(3);
-  const [equipment, setEquipment] = useState([]);
-  const [customEquipment, setCustomEquipment] = useState('');
+  const [todaysWorkout, setTodaysWorkout] = useState(null);
+  const [showInputForm, setShowInputForm] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
   
-  // User data from analytics
-  const [goal, setGoal] = useState('muscle_gain');
-  const [foodPreference, setFoodPreference] = useState('none');
-  const [avgSteps, setAvgSteps] = useState('8000');
-  const [avgSleep, setAvgSleep] = useState('7');
-  const [spo2, setSpo2] = useState('98');
+  // Form inputs
+  const [formData, setFormData] = useState({
+    age: '',
+    weight: '',
+    height: '',
+    goal: 'general_fitness',
+    avgSteps: '5000',
+    sleepHours: '7',
+    spo2: '98',
+    fitnessLevel: 'intermediate'
+  });
 
-  const goalOptions = [
-    { key: 'muscle_gain', label: 'Muscle Gain' },
-    { key: 'weight_loss', label: 'Weight Loss' },
-    { key: 'endurance', label: 'Endurance' },
-    { key: 'flexibility', label: 'Flexibility' },
-  ];
+  useEffect(() => {
+    loadUserProfile();
+    loadTodaysWorkout();
+  }, []);
 
-  const foodOptions = [
-    { key: 'none', label: 'None' },
-    { key: 'vegetarian', label: 'Vegetarian' },
-    { key: 'vegan', label: 'Vegan' },
-    { key: 'pescatarian', label: 'Pescatarian' },
-  ];
-
-  const equipmentOptions = [
-    'dumbbells', 
-    'barbell', 
-    'resistance_bands', 
-    'pull_up_bar', 
-    'kettlebell',
-    'treadmill',
-    'exercise_bike',
-    'rowing_machine',
-    'yoga_mat',
-    'none'
-  ];
-
-  const toggleEquipment = (item) => {
-    if (equipment.includes(item)) {
-      setEquipment(equipment.filter(e => e !== item));
-    } else {
-      setEquipment([...equipment, item]);
-    }
-  };
-
-  const addCustomEquipment = () => {
-    if (customEquipment.trim() && !equipment.includes(customEquipment.trim())) {
-      setEquipment([...equipment, customEquipment.trim()]);
-      setCustomEquipment('');
-    }
-  };
-
-  const generatePlan = async () => {
-    setLoading(true);
+  const loadUserProfile = async () => {
     try {
-      const token = await AsyncStorage.getItem('access_token');
-      const response = await axios.post(
-        'http://192.168.29.52:8000/api/ml/workout-plan/',
-        {
-          experience_level: experienceLevel,
-          days_per_week: daysPerWeek,
-          equipment: equipment,
-          goal: goal,
-          food_preference: foodPreference,
-          avg_steps: parseInt(avgSteps),
-          avg_sleep: parseFloat(avgSleep),
-          spo2: parseInt(spo2),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (response.data.success) {
-        setWorkoutPlan(response.data.workout_plan);
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const today = new Date();
+        const birthDate = new Date(user.date_of_birth);
+        const age = today.getFullYear() - birthDate.getFullYear();
+        
+        setFormData(prev => ({
+          ...prev,
+          age: age.toString(),
+          weight: user.weight?.toString() || '',
+          height: user.height?.toString() || '',
+          goal: user.fitness_goal || 'general_fitness'
+        }));
       }
     } catch (error) {
-      console.error('Workout plan error:', error);
-      Alert.alert('Error', 'Failed to generate workout plan');
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const loadTodaysWorkout = async () => {
+    try {
+      const result = await getTodaysWorkout();
+      if (result.has_workout) {
+        setTodaysWorkout(result.workout);
+      } else {
+        setTodaysWorkout(null);
+      }
+    } catch (error) {
+      console.error('Error loading workout:', error);
+      setTodaysWorkout(null);
+    }
+  };
+
+  const handleGenerateWorkout = async () => {
+    if (!formData.age || !formData.weight || !formData.height) {
+      Alert.alert('Missing Information', 'Please fill in your age, weight, and height');
+      return;
+    }
+
+    setLoading(true);
+    setShowInputForm(false);
+    
+    try {
+      const response = await generateDailyWorkout({
+        fitness_level: formData.fitnessLevel,
+        goal: formData.goal,
+        age: parseInt(formData.age),
+        weight: parseFloat(formData.weight),
+        height: parseFloat(formData.height),
+        avg_steps: parseInt(formData.avgSteps),
+        sleep_hours: parseFloat(formData.sleepHours),
+        spo2: parseInt(formData.spo2)
+      });
+      
+      if (response.success && response.workout) {
+        setTodaysWorkout(response.workout);
+        Alert.alert('Success', `Day ${response.workout.day_number} workout generated!`);
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to generate workout');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleExerciseToggle = async (exerciseIndex) => {
+    if (!todaysWorkout) return;
+    
+    try {
+      await trackWorkoutExercise(todaysWorkout.id, exerciseIndex, true);
+      
+      // Update local state
+      const updatedExercises = [...todaysWorkout.exercises];
+      updatedExercises[exerciseIndex].completed = !updatedExercises[exerciseIndex].completed;
+      
+      setTodaysWorkout({
+        ...todaysWorkout,
+        exercises: updatedExercises
+      });
+      
+      // Check if all completed
+      const allCompleted = updatedExercises.every(e => e.completed);
+      if (allCompleted && !todaysWorkout.has_feedback) {
+        setShowFeedbackModal(true);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update exercise');
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!selectedFeedback || !todaysWorkout) return;
+    
+    try {
+      await completeDailyWorkout(todaysWorkout.id, selectedFeedback);
+      setShowFeedbackModal(false);
+      
+      Alert.alert(
+        'Great Job!',
+        `Tomorrow's workout will be adjusted based on your feedback. Come back tomorrow for Day ${todaysWorkout.day_number + 1}!`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save feedback');
+    }
+  };
+
+  const getWorkoutIcon = (workoutType) => {
+    const iconMap = {
+      'cardio': 'run',
+      'strength': 'dumbbell',
+      'flexibility': 'yoga',
+      'hiit': 'lightning-bolt',
+      'yoga': 'meditation',
+      'core': 'ab-testing',
+      'general': 'weight-lifter'
+    };
+    return iconMap[workoutType?.toLowerCase()] || 'weight-lifter';
+  };
+  
+  const getWorkoutColor = (workoutType) => {
+    const colorMap = {
+      'cardio': '#FF7043',
+      'strength': '#42A5F5',
+      'flexibility': '#66BB6A',
+      'hiit': '#FFA726',
+      'yoga': '#AB47BC',
+      'core': '#26C6DA',
+      'general': '#78909C'
+    };
+    return colorMap[workoutType?.toLowerCase()] || '#78909C';
+  };
+
+  const InputField = ({ label, value, onChangeText, placeholder, keyboardType = 'default', info }) => (
+    <View style={styles.inputGroup}>
+      <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>{label}</Text>
+      {info && <Text style={[styles.inputInfo, { color: colors.textTertiary }]}>{info}</Text>}
+      <TextInput
+        style={[styles.input, { backgroundColor: colors.cardGlass, color: colors.textPrimary, borderColor: colors.border }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textTertiary}
+        keyboardType={keyboardType}
+      />
+    </View>
+  );
+
+  const SelectField = ({ label, value, options, onSelect, info }) => (
+    <View style={styles.inputGroup}>
+      <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>{label}</Text>
+      {info && <Text style={[styles.inputInfo, { color: colors.textTertiary }]}>{info}</Text>}
+      <View style={styles.selectRow}>
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            style={[
+              styles.selectOption,
+              { 
+                backgroundColor: value === option.value ? colors.accent : colors.cardGlass,
+                borderColor: value === option.value ? colors.accent : colors.border
+              }
+            ]}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={[styles.selectOptionText, { color: value === option.value ? '#FFF' : colors.textPrimary }]}>
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <LinearGradient
-      colors={isDark ? ['#1A3A3A', '#2A4F4F'] : ['#7A9B9E', '#A8C5C7']}
+      colors={isDark ? [colors.backgroundStart, colors.backgroundMid, colors.backgroundEnd] : [colors.backgroundStart, colors.backgroundMid, colors.backgroundEnd]}
       style={styles.container}
     >
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>AI Workout Plan</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Daily Workout</Text>
         </View>
 
-        {!workoutPlan ? (
-          <View>
-            {/* Input Form */}
-            <View style={[styles.card, { backgroundColor: 'transparent', borderColor: colors.border }]}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Fitness Goal</Text>
-              <View style={styles.buttonGroup}>
-                {goalOptions.map((g) => (
-                  <TouchableOpacity
-                    key={g.key}
-                    style={[
-                      styles.optionButton,
-                      {
-                        backgroundColor: goal === g.key ? colors.accent : colors.cardGlass,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setGoal(g.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        { color: goal === g.key ? '#fff' : colors.textPrimary },
-                      ]}
-                    >
-                      {g.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>Food Preference</Text>
-              <View style={styles.buttonGroup}>
-                {foodOptions.map((f) => (
-                  <TouchableOpacity
-                    key={f.key}
-                    style={[
-                      styles.optionButton,
-                      {
-                        backgroundColor: foodPreference === f.key ? colors.accent : colors.cardGlass,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setFoodPreference(f.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        { color: foodPreference === f.key ? '#fff' : colors.textPrimary },
-                      ]}
-                    >
-                      {f.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Average Daily Steps
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.cardGlass }]}
-                value={avgSteps}
-                onChangeText={setAvgSteps}
-                keyboardType="numeric"
-                placeholder="e.g., 8000"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Average Sleep (hours)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.cardGlass }]}
-                value={avgSleep}
-                onChangeText={setAvgSleep}
-                keyboardType="decimal-pad"
-                placeholder="e.g., 7"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                SpO2 Level (%)
-              </Text>
-              <TextInput
-                style={[styles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.cardGlass }]}
-                value={spo2}
-                onChangeText={setSpo2}
-                keyboardType="numeric"
-                placeholder="e.g., 98"
-                placeholderTextColor={colors.textTertiary}
-              />
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>Experience Level</Text>
-              <View style={styles.buttonGroup}>
-                {[
-                  { key: 'beginner', label: 'Beginner' },
-                  { key: 'intermediate', label: 'Intermediate' },
-                  { key: 'advanced', label: 'Advanced' }
-                ].map((level) => (
-                  <TouchableOpacity
-                    key={level.key}
-                    style={[
-                      styles.optionButton,
-                      {
-                        backgroundColor: experienceLevel === level.key ? colors.accent : colors.cardGlass,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setExperienceLevel(level.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        { color: experienceLevel === level.key ? '#fff' : colors.textPrimary },
-                      ]}
-                    >
-                      {level.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Days Per Week
-              </Text>
-              <View style={styles.buttonGroup}>
-                {[3, 4, 5, 6].map((days) => (
-                  <TouchableOpacity
-                    key={days}
-                    style={[
-                      styles.dayButton,
-                      {
-                        backgroundColor: daysPerWeek === days ? colors.accent : colors.cardGlass,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setDaysPerWeek(days)}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        { color: daysPerWeek === days ? '#fff' : colors.textPrimary },
-                      ]}
-                    >
-                      {days}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
-                Available Equipment
-              </Text>
-              <View style={styles.equipmentGrid}>
-                {equipmentOptions.map((item) => (
-                  <TouchableOpacity
-                    key={item}
-                    style={[
-                      styles.equipmentButton,
-                      {
-                        backgroundColor: equipment.includes(item) ? colors.success + '40' : colors.cardGlass,
-                        borderColor: equipment.includes(item) ? colors.success : colors.border,
-                      },
-                    ]}
-                    onPress={() => toggleEquipment(item)}
-                  >
-                    <Icon
-                      name={equipment.includes(item) ? 'check-circle' : 'circle-outline'}
-                      size={20}
-                      color={equipment.includes(item) ? colors.success : colors.textTertiary}
-                    />
-                    <Text style={[styles.equipmentText, { color: colors.textPrimary }]}>
-                      {item.replace(/_/g, ' ')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>
-                Add Your Own Equipment
-              </Text>
-              <View style={styles.customEquipmentRow}>
-                <TextInput
-                  style={[styles.customInput, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.cardGlass }]}
-                  value={customEquipment}
-                  onChangeText={setCustomEquipment}
-                  placeholder="e.g., medicine ball"
-                  placeholderTextColor={colors.textTertiary}
-                />
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: colors.accent }]}
-                  onPress={addCustomEquipment}
-                >
-                  <Icon name="plus" size={20} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-
-              {equipment.filter(e => !equipmentOptions.includes(e)).length > 0 && (
-                <View style={styles.customEquipmentList}>
-                  {equipment.filter(e => !equipmentOptions.includes(e)).map((item, idx) => (
-                    <View key={idx} style={[styles.customChip, { backgroundColor: colors.success + '40', borderColor: colors.success }]}>
-                      <Text style={[styles.customChipText, { color: colors.textPrimary }]}>{item}</Text>
-                      <TouchableOpacity onPress={() => setEquipment(equipment.filter(e => e !== item))}>
-                        <Icon name="close-circle" size={18} color={colors.success} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[styles.generateButton, { backgroundColor: colors.accent }]}
-                onPress={generatePlan}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.generateButtonText}>Generate Workout Plan</Text>
-                )}
-              </TouchableOpacity>
+        {!todaysWorkout ? (
+          <View style={styles.emptyState}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.accent + '20' }]}>
+              <Icon name="dumbbell" size={64} color={colors.accent} />
             </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Generate Today's Workout</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Get a personalized workout for today. Complete it and provide feedback to get tomorrow's workout adjusted to your level!
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.generateButton, { backgroundColor: colors.accent }]}
+              onPress={() => setShowInputForm(true)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <>
+                  <Icon name="sparkles" size={20} color="#FFF" />
+                  <Text style={styles.generateButtonText}>Generate Today's Workout</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         ) : (
-          <View>
-            {/* Workout Plan Results */}
-            <View style={[styles.card, { backgroundColor: 'transparent', borderColor: colors.border }]}>
-              <View style={styles.resultHeader}>
-                <Icon name="dumbbell" size={32} color={colors.accent} />
-                <Text style={[styles.resultTitle, { color: colors.textPrimary }]}>
-                  Your Personalized Workout Plan
-                </Text>
+          <>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.dayBadge}>
+                <Text style={styles.dayBadgeText}>DAY {todaysWorkout.day_number}</Text>
               </View>
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoItem}>
-                  <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Type</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {workoutPlan.type}
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Days/Week</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {workoutPlan.days_per_week}
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Level</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {workoutPlan.experience_level}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Exercises</Text>
-              {workoutPlan.exercises.map((exercise, idx) => (
-                <View key={idx} style={[styles.exerciseCard, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}>
-                  <View style={styles.exerciseHeader}>
-                    <Icon name="fitness" size={20} color={colors.accent} />
-                    <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>
-                      {exercise.name}
-                    </Text>
+              <Text style={[styles.planTitle, { color: colors.textPrimary }]}>{todaysWorkout.workout_name}</Text>
+              
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#FF7043' + '20' }]}>
+                    <Icon name="fire" size={24} color="#FF7043" />
                   </View>
-                  <View style={styles.exerciseDetails}>
-                    {exercise.sets && (
-                      <Text style={[styles.exerciseDetail, { color: colors.textSecondary }]}>
-                        {exercise.sets} sets × {exercise.reps} reps
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{todaysWorkout.total_calories}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Calories</Text>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#42A5F5' + '20' }]}>
+                    <Icon name="clock-outline" size={24} color="#42A5F5" />
+                  </View>
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{todaysWorkout.total_duration}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Minutes</Text>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={[styles.summaryIcon, { backgroundColor: '#66BB6A' + '20' }]}>
+                    <Icon name="format-list-numbered" size={24} color="#66BB6A" />
+                  </View>
+                  <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{todaysWorkout.exercises.length}</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Exercises</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Today's Exercises</Text>
+            
+            {todaysWorkout.exercises.map((exercise, index) => {
+              const workoutColor = getWorkoutColor(exercise.workout_type);
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.exerciseCard,
+                    { 
+                      backgroundColor: colors.card,
+                      borderColor: exercise.completed ? colors.success : colors.border,
+                      borderWidth: exercise.completed ? 2 : 1
+                    }
+                  ]}
+                  onPress={() => handleExerciseToggle(index)}
+                  disabled={todaysWorkout.has_feedback}
+                >
+                  <View style={styles.exerciseHeader}>
+                    <View style={[styles.checkbox, { borderColor: exercise.completed ? colors.success : colors.border }]}>
+                      {exercise.completed && <Icon name="check" size={20} color={colors.success} />}
+                    </View>
+                    <View style={[styles.exerciseIcon, { backgroundColor: workoutColor + '20' }]}>
+                      <Icon name={getWorkoutIcon(exercise.workout_type)} size={24} color={workoutColor} />
+                    </View>
+                    <View style={styles.exerciseInfo}>
+                      <Text style={[styles.exerciseName, { color: colors.textPrimary, textDecorationLine: exercise.completed ? 'line-through' : 'none' }]}>
+                        {exercise.name}
                       </Text>
-                    )}
-                    {exercise.duration && (
-                      <Text style={[styles.exerciseDetail, { color: colors.textSecondary }]}>
-                        Duration: {exercise.duration}
-                      </Text>
-                    )}
-                    <View style={[styles.intensityBadge, { 
-                      backgroundColor: exercise.intensity === 'high' ? colors.error + '30' : 
-                                      exercise.intensity === 'moderate' ? colors.warning + '30' : 
-                                      colors.success + '30' 
-                    }]}>
-                      <Text style={[styles.intensityText, { 
-                        color: exercise.intensity === 'high' ? colors.error : 
-                               exercise.intensity === 'moderate' ? colors.warning : 
-                               colors.success 
-                      }]}>
-                        {exercise.intensity}
+                      <Text style={[styles.exerciseReps, { color: colors.textSecondary }]}>{exercise.reps_or_duration}</Text>
+                      <Text style={[styles.exerciseType, { color: workoutColor }]}>
+                        {exercise.workout_type?.toUpperCase() || 'GENERAL'}
                       </Text>
                     </View>
+                    <View style={[styles.caloriesBadge, { backgroundColor: '#FF7043' + '20' }]}>
+                      <Icon name="fire" size={16} color="#FF7043" />
+                      <Text style={[styles.caloriesText, { color: '#FF7043' }]}>{exercise.calories}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                </TouchableOpacity>
+              );
+            })}
 
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Weekly Schedule</Text>
-              {workoutPlan.weekly_schedule.map((day, idx) => (
-                <View key={idx} style={styles.scheduleItem}>
-                  <Icon name="calendar-check" size={18} color={colors.accent} />
-                  <Text style={[styles.scheduleText, { color: colors.textSecondary }]}>
-                    {day}
-                  </Text>
-                </View>
-              ))}
-
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Tips</Text>
-              {workoutPlan.tips.map((tip, idx) => (
-                <Text key={idx} style={[styles.tip, { color: colors.textSecondary }]}>
-                  • {tip}
+            {todaysWorkout.has_feedback && (
+              <View style={[styles.feedbackCard, { backgroundColor: colors.success + '20', borderColor: colors.success }]}>
+                <Icon name="check-circle" size={48} color={colors.success} />
+                <Text style={[styles.feedbackTitle, { color: colors.textPrimary }]}>Workout Completed!</Text>
+                <Text style={[styles.feedbackText, { color: colors.textSecondary }]}>
+                  Great job! Come back tomorrow for Day {todaysWorkout.day_number + 1}
                 </Text>
-              ))}
-
-              <TouchableOpacity
-                style={[styles.regenerateButton, { backgroundColor: colors.cardGlass, borderColor: colors.border }]}
-                onPress={() => setWorkoutPlan(null)}
-              >
-                <Text style={[styles.regenerateText, { color: colors.textPrimary }]}>
-                  Generate New Plan
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              </View>
+            )}
+          </>
         )}
 
-        <View style={styles.bottomSpace} />
+        <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Input Form Modal */}
+      <Modal visible={showInputForm} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#182E3D' : '#E8F0EE' }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Workout Details</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Provide your information for today's personalized workout
+              </Text>
+
+              <InputField
+                label="Age"
+                value={formData.age}
+                onChangeText={(text) => setFormData({...formData, age: text})}
+                placeholder="25"
+                keyboardType="numeric"
+                info="From your profile"
+              />
+
+              <InputField
+                label="Weight (kg)"
+                value={formData.weight}
+                onChangeText={(text) => setFormData({...formData, weight: text})}
+                placeholder="70"
+                keyboardType="numeric"
+                info="From your profile"
+              />
+
+              <InputField
+                label="Height (cm)"
+                value={formData.height}
+                onChangeText={(text) => setFormData({...formData, height: text})}
+                placeholder="175"
+                keyboardType="numeric"
+                info="From your profile"
+              />
+
+              <SelectField
+                label="Fitness Goal"
+                value={formData.goal}
+                options={[
+                  { label: 'Lose Weight', value: 'lose_weight' },
+                  { label: 'Build Muscle', value: 'gain_muscle' },
+                  { label: 'General Fitness', value: 'general_fitness' },
+                  { label: 'Endurance', value: 'improve_endurance' }
+                ]}
+                onSelect={(value) => setFormData({...formData, goal: value})}
+                info="From your profile"
+              />
+
+              <SelectField
+                label="Fitness Level"
+                value={formData.fitnessLevel}
+                options={[
+                  { label: 'Beginner', value: 'beginner' },
+                  { label: 'Intermediate', value: 'intermediate' },
+                  { label: 'Advanced', value: 'advanced' }
+                ]}
+                onSelect={(value) => setFormData({...formData, fitnessLevel: value})}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.cardGlass, borderWidth: 1, borderColor: colors.border }]}
+                  onPress={() => setShowInputForm(false)}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.accent }]}
+                  onPress={handleGenerateWorkout}
+                >
+                  <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Generate</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Feedback Modal */}
+      <Modal visible={showFeedbackModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.feedbackModalContent, { backgroundColor: isDark ? '#182E3D' : '#E8F0EE' }]}>
+            <Text style={[styles.feedbackModalTitle, { color: colors.textPrimary }]}>How was today's workout?</Text>
+            <Text style={[styles.feedbackModalSubtitle, { color: colors.textSecondary }]}>
+              Your feedback helps us adjust tomorrow's workout
+            </Text>
+            
+            <TouchableOpacity
+              style={[
+                styles.feedbackOption,
+                { 
+                  backgroundColor: selectedFeedback === 'easy' ? colors.success + '20' : colors.cardGlass,
+                  borderColor: selectedFeedback === 'easy' ? colors.success : colors.border
+                }
+              ]}
+              onPress={() => setSelectedFeedback('easy')}
+            >
+              <Text style={styles.feedbackEmoji}>😊</Text>
+              <Text style={[styles.feedbackOptionTitle, { color: colors.textPrimary }]}>Too Easy</Text>
+              <Text style={[styles.feedbackOptionDesc, { color: colors.textSecondary }]}>I can do more!</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.feedbackOption,
+                { 
+                  backgroundColor: selectedFeedback === 'just_right' ? colors.accent + '20' : colors.cardGlass,
+                  borderColor: selectedFeedback === 'just_right' ? colors.accent : colors.border
+                }
+              ]}
+              onPress={() => setSelectedFeedback('just_right')}
+            >
+              <Text style={styles.feedbackEmoji}>👍</Text>
+              <Text style={[styles.feedbackOptionTitle, { color: colors.textPrimary }]}>Just Right</Text>
+              <Text style={[styles.feedbackOptionDesc, { color: colors.textSecondary }]}>Perfect challenge</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.feedbackOption,
+                { 
+                  backgroundColor: selectedFeedback === 'difficult' ? colors.warning + '20' : colors.cardGlass,
+                  borderColor: selectedFeedback === 'difficult' ? colors.warning : colors.border
+                }
+              ]}
+              onPress={() => setSelectedFeedback('difficult')}
+            >
+              <Text style={styles.feedbackEmoji}>😓</Text>
+              <Text style={[styles.feedbackOptionTitle, { color: colors.textPrimary }]}>Too Hard</Text>
+              <Text style={[styles.feedbackOptionDesc, { color: colors.textSecondary }]}>Need easier workout</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.submitFeedbackButton, { backgroundColor: colors.accent, opacity: selectedFeedback ? 1 : 0.5 }]}
+              onPress={handleSubmitFeedback}
+              disabled={!selectedFeedback}
+            >
+              <Text style={styles.submitFeedbackText}>Submit & Generate Tomorrow's Workout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  card: {
-    padding: 24,
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  buttonGroup: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  optionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  dayButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
-  equipmentGrid: {
-    gap: 10,
-  },
-  equipmentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-  },
-  equipmentText: {
-    fontSize: 14,
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  customEquipmentRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  customInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-  },
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  customEquipmentList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  customChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 6,
-  },
-  customChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  generateButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  generateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  resultHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  resultTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  infoItem: {
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  exerciseCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  exerciseName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  exerciseDetails: {
-    gap: 6,
-  },
-  exerciseDetail: {
-    fontSize: 14,
-  },
-  intensityBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  intensityText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-  },
-  scheduleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  scheduleText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  tip: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  regenerateButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 16,
-    borderWidth: 1,
-  },
-  regenerateText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  bottomSpace: {
-    height: 20,
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
+  content: { padding: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  backButton: { marginRight: 16 },
+  title: { fontSize: 24, fontWeight: 'bold' },
+  emptyState: { alignItems: 'center', paddingVertical: 60 },
+  iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  emptyTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
+  emptySubtitle: { fontSize: 15, textAlign: 'center', marginBottom: 32, paddingHorizontal: 20, lineHeight: 22 },
+  generateButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 25, gap: 10 },
+  generateButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  card: { padding: 24, borderRadius: 20, marginBottom: 20, borderWidth: 1 },
+  dayBadge: { alignSelf: 'center', backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginBottom: 12 },
+  dayBadgeText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
+  planTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  summaryItem: { alignItems: 'center', gap: 8 },
+  summaryIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  summaryValue: { fontSize: 24, fontWeight: 'bold' },
+  summaryLabel: { fontSize: 13 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  exerciseCard: { padding: 16, borderRadius: 16, marginBottom: 12 },
+  exerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  checkbox: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  exerciseIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  exerciseInfo: { flex: 1 },
+  exerciseName: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  exerciseReps: { fontSize: 14, marginBottom: 2 },
+  exerciseType: { fontSize: 11, fontWeight: 'bold', marginTop: 4 },
+  caloriesBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 4 },
+  caloriesText: { fontSize: 14, fontWeight: '600' },
+  feedbackCard: { padding: 24, borderRadius: 20, marginTop: 20, borderWidth: 2, alignItems: 'center', gap: 12 },
+  feedbackTitle: { fontSize: 20, fontWeight: 'bold' },
+  feedbackText: { fontSize: 15, textAlign: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
+  modalSubtitle: { fontSize: 14, marginBottom: 24 },
+  inputGroup: { marginBottom: 20 },
+  inputLabel: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  inputInfo: { fontSize: 12, marginBottom: 8, fontStyle: 'italic' },
+  input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
+  selectRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  selectOption: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
+  selectOptionText: { fontSize: 14, fontWeight: '600' },
+  modalButtons: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  modalButton: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
+  modalButtonText: { fontSize: 16, fontWeight: 'bold' },
+  feedbackModalContent: { borderRadius: 24, padding: 24, margin: 20 },
+  feedbackModalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
+  feedbackModalSubtitle: { fontSize: 14, marginBottom: 24, textAlign: 'center' },
+  feedbackOption: { padding: 20, borderRadius: 16, marginBottom: 12, borderWidth: 2, alignItems: 'center' },
+  feedbackEmoji: { fontSize: 48, marginBottom: 8 },
+  feedbackOptionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+  feedbackOptionDesc: { fontSize: 14 },
+  submitFeedbackButton: { padding: 16, borderRadius: 12, marginTop: 12 },
+  submitFeedbackText: { color: '#FFF', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
 });
 
 export default WorkoutPlanScreen;

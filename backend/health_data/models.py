@@ -18,7 +18,6 @@ class Diet(models.Model):
     def __str__(self):
         return f"{self.user.email} - Diet Plan"
 
-# Marathon Model
 # Workout Model - Stores workout programs and plans
 class Workout(models.Model):
     INTENSITY_CHOICES = [
@@ -27,14 +26,24 @@ class Workout(models.Model):
         ('high', 'High'),
     ]
     
+    FEEDBACK_CHOICES = [
+        ('easy', 'Too Easy'),
+        ('just_right', 'Just Right'),
+        ('difficult', 'Too Difficult'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workouts_plans')
     workout_name = models.CharField(max_length=100)
     workout_type = models.CharField(max_length=50)  # e.g., Cardio, Strength, Flexibility
-    duration = models.IntegerField()  # in minutes
+    duration = models.IntegerField()  # in minutes or days for multi-day plans
     calories_burned = models.FloatField(default=0.0)
     intensity = models.CharField(max_length=20, choices=INTENSITY_CHOICES, default='moderate')
     date = models.DateField()
     description = models.TextField(blank=True)
+    is_daily_plan = models.BooleanField(default=False)  # True for daily progressive plans
+    plan_day_number = models.IntegerField(null=True, blank=True)  # Which day in progression
+    user_feedback = models.CharField(max_length=20, choices=FEEDBACK_CHOICES, null=True, blank=True)
+    feedback_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,6 +54,7 @@ class Workout(models.Model):
     def __str__(self):
         return f"{self.user.email} - {self.workout_name}"
 
+# Marathon Model
 class Marathon(models.Model):
     STATUS_CHOICES = [
         ('planning', 'Planning'),
@@ -130,36 +140,6 @@ class SleepData(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.date}"
-
-class WorkoutSession(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workouts')
-    workout_type = models.CharField(max_length=50, choices=[
-        ('running', 'Running'),
-        ('cycling', 'Cycling'),
-        ('walking', 'Walking'),
-        ('gym', 'Gym'),
-        ('yoga', 'Yoga'),
-        ('swimming', 'Swimming'),
-        ('other', 'Other')
-    ])
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
-    duration = models.IntegerField(help_text="Duration in minutes")
-    calories_burned = models.FloatField(default=0.0)
-    distance = models.FloatField(null=True, blank=True, help_text="Distance in km")
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'workout_sessions'
-        ordering = ['-start_time']
-        indexes = [
-            models.Index(fields=['user', 'start_time']),
-        ]
-
-    def __str__(self):
-        return f"{self.user.email} - {self.workout_type}"
-
 
 class WaterIntake(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='water_intake')

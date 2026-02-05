@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">FitWell</string>
+    <string name="health_permissions_rationale">FitWell uses Health Connect to sync your fitness data including steps, heart rate, sleep, calories, and exercise sessions to provide personalized health insights and recommendations.</string>
+    <string name="privacy_policy_url">https://fitwell.com/privacy</string>
 </resources>
